@@ -50,10 +50,7 @@ class SentenceScraper:
             for selector in selectors:
                 elements = soup.select(selector)
                 for element in elements:
-                    # Use strip=False to preserve spaces and manually clean up
-                    text = element.get_text(strip=False)
-                    # Clean up whitespace while preserving spaces between words
-                    text = ' '.join(text.split())
+                    text = element.get_text(strip=True)
                     if text and not text.startswith('Sentencedict.com'):
                         sentences.append(text)
             
@@ -92,10 +89,7 @@ class SentenceScraper:
             examples = soup.select('.eg')
             
             for example in examples:
-            
-                text = example.get_text(strip=False)
-                
-                text = ' '.join(text.split())
+                text = example.get_text(strip=True)
                 if text:
                     sentences.append(text)
             
@@ -125,10 +119,7 @@ class SentenceScraper:
             sentence_elements = soup.select('.sentence-item .sentence, .example-sentence')
             
             for element in sentence_elements:
-                # Use strip=False to preserve spaces and manually clean up
-                text = element.get_text(strip=False)
-                # Clean up whitespace while preserving spaces between words
-                text = ' '.join(text.split())
+                text = element.get_text(strip=True)
                 if text:
                     sentences.append(text)
             
@@ -142,7 +133,7 @@ class SentenceScraper:
             logger.error(f"Error scraping YourDictionary for '{word}': {str(e)}")
             return None
     
-    def process_sentences(self, sentences):
+        def process_sentences(self, sentences):
         """Clean and process sentences"""
         regex = re.compile(r'(\(\d+\)|\(.*?\)|\d+\.)|^\d+[\.,]|^\d+')
         processed = []
@@ -151,8 +142,10 @@ class SentenceScraper:
             if not sentence.strip():
                 continue
                 
-            # Remove unwanted patterns
-            cleaned = regex.sub('', sentence).strip()
+            cleaned = regex.sub(' ', sentence).strip()
+            
+            # Clean up multiple spaces
+            cleaned = re.sub(r'\s+', ' ', cleaned)
             
             # Skip very short sentences or obvious non-sentences
             if len(cleaned) < 10 or cleaned.lower().startswith(('show all', 'random good')):
