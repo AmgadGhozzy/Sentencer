@@ -144,6 +144,10 @@ class SentenceScraper:
                 
             # Remove unwanted patterns
             cleaned = regex.sub('', sentence).strip()
+           
+            cleaned = re.sub(r'(\w)([a-zA-Z]+)', r'\1 \2', cleaned)
+          
+            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
             
             # Skip very short sentences or obvious non-sentences
             if len(cleaned) < 10 or cleaned.lower().startswith(('show all', 'random good')):
