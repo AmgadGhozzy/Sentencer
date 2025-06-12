@@ -1,0 +1,5 @@
+[start]
+cmd = "gunicorn flask_proxy:app --bind 0.0.0.0:8080 --workers 4 --timeout 120"
+
+[deploy]
+startCommand = "gunicorn flask_proxy:app --bind 0.0.0.0:8080 --workers 4 --timeout 120"
