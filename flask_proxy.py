@@ -50,7 +50,10 @@ class SentenceScraper:
             for selector in selectors:
                 elements = soup.select(selector)
                 for element in elements:
-                    text = element.get_text(strip=True)
+                    # Use strip=False to preserve spaces and manually clean up
+                    text = element.get_text(strip=False)
+                    # Clean up whitespace while preserving spaces between words
+                    text = ' '.join(text.split())
                     if text and not text.startswith('Sentencedict.com'):
                         sentences.append(text)
             
@@ -89,7 +92,10 @@ class SentenceScraper:
             examples = soup.select('.eg')
             
             for example in examples:
-                text = example.get_text(strip=True)
+            
+                text = example.get_text(strip=False)
+                
+                text = ' '.join(text.split())
                 if text:
                     sentences.append(text)
             
@@ -119,7 +125,10 @@ class SentenceScraper:
             sentence_elements = soup.select('.sentence-item .sentence, .example-sentence')
             
             for element in sentence_elements:
-                text = element.get_text(strip=True)
+                # Use strip=False to preserve spaces and manually clean up
+                text = element.get_text(strip=False)
+                # Clean up whitespace while preserving spaces between words
+                text = ' '.join(text.split())
                 if text:
                     sentences.append(text)
             
@@ -144,10 +153,6 @@ class SentenceScraper:
                 
             # Remove unwanted patterns
             cleaned = regex.sub('', sentence).strip()
-           
-            cleaned = re.sub(r'(\w)([a-zA-Z]+)', r'\1 \2', cleaned)
-          
-            cleaned = re.sub(r'\s+', ' ', cleaned).strip()
             
             # Skip very short sentences or obvious non-sentences
             if len(cleaned) < 10 or cleaned.lower().startswith(('show all', 'random good')):
