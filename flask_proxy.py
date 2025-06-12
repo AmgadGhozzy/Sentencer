@@ -50,7 +50,8 @@ class SentenceScraper:
             for selector in selectors:
                 elements = soup.select(selector)
                 for element in elements:
-                    text = element.get_text(strip=True)
+                    # Use separator=' ' to ensure spaces around HTML tags
+                    text = element.get_text(separator=' ', strip=True)
                     if text and not text.startswith('Sentencedict.com'):
                         sentences.append(text)
             
@@ -72,7 +73,7 @@ class SentenceScraper:
         except Exception as e:
             logger.error(f"Error scraping sentencedict for '{word}': {str(e)}")
             return None
-    
+
     def scrape_cambridge(self, word):
         """Scrape sentences from Cambridge Dictionary"""
         try:
@@ -89,7 +90,8 @@ class SentenceScraper:
             examples = soup.select('.eg')
             
             for example in examples:
-                text = example.get_text(strip=True)
+                # Use separator=' ' to ensure spaces around HTML tags
+                text = example.get_text(separator=' ', strip=True)
                 if text:
                     sentences.append(text)
             
@@ -102,7 +104,7 @@ class SentenceScraper:
         except Exception as e:
             logger.error(f"Error scraping Cambridge for '{word}': {str(e)}")
             return None
-    
+
     def scrape_yourdictionary(self, word):
         """Scrape sentences from YourDictionary"""
         try:
@@ -119,7 +121,8 @@ class SentenceScraper:
             sentence_elements = soup.select('.sentence-item .sentence, .example-sentence')
             
             for element in sentence_elements:
-                text = element.get_text(strip=True)
+                # Use separator=' ' to ensure spaces around HTML tags
+                text = element.get_text(separator=' ', strip=True)
                 if text:
                     sentences.append(text)
             
@@ -132,8 +135,8 @@ class SentenceScraper:
         except Exception as e:
             logger.error(f"Error scraping YourDictionary for '{word}': {str(e)}")
             return None
-    
-        def process_sentences(self, sentences):
+
+    def process_sentences(self, sentences):
         """Clean and process sentences"""
         regex = re.compile(r'(\(\d+\)|\(.*?\)|\d+\.)|^\d+[\.,]|^\d+')
         processed = []
@@ -142,6 +145,7 @@ class SentenceScraper:
             if not sentence.strip():
                 continue
                 
+            # Remove unwanted patterns and replace with space to preserve word separation
             cleaned = regex.sub(' ', sentence).strip()
             
             # Clean up multiple spaces
