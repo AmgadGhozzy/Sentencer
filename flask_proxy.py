@@ -3,9 +3,6 @@ from flask_cors import CORS
 import requests
 from bs4 import BeautifulSoup
 import re
-import time
-import random
-from urllib.parse import urljoin, urlparse
 import logging
 
 app = Flask(__name__)
@@ -26,18 +23,11 @@ class SentenceScraper:
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
         })
-        
-    def add_random_delay(self):
-        """Add random delay to avoid being detected as bot"""
-        delay = random.uniform(1, 3)
-        time.sleep(delay)
     
     def scrape_sentencedict(self, word):
         """Scrape sentences from sentencedict.com"""
         try:
             url = f"https://sentencedict.com/{word}.html"
-            self.add_random_delay()
-            
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
@@ -50,23 +40,15 @@ class SentenceScraper:
             for selector in selectors:
                 elements = soup.select(selector)
                 for element in elements:
-                    # Use separator=' ' to ensure spaces around HTML tags
                     text = element.get_text(separator=' ', strip=True)
                     if text and not text.startswith('Sentencedict.com'):
                         sentences.append(text)
             
-            # Extract word image if available
-            image_url = None
-            img_element = soup.select_one('#imageId img, #imageId2 img')
-            if img_element and img_element.get('src'):
-                image_url = urljoin(url, img_element['src'])
-            
-            # Process sentences (remove numbers, parentheses, etc.)
+            # Process sentences
             processed_sentences = self.process_sentences(sentences)
             
             return {
                 'sentences': processed_sentences,
-                'image_url': image_url,
                 'source': 'sentencedict.com'
             }
             
@@ -78,8 +60,6 @@ class SentenceScraper:
         """Scrape sentences from Cambridge Dictionary"""
         try:
             url = f"https://dictionary.cambridge.org/dictionary/english/{word}"
-            self.add_random_delay()
-            
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
@@ -90,14 +70,14 @@ class SentenceScraper:
             examples = soup.select('.eg')
             
             for example in examples:
-                # Use separator=' ' to ensure spaces around HTML tags
                 text = example.get_text(separator=' ', strip=True)
                 if text:
                     sentences.append(text)
             
+            processed_sentences = self.process_sentences(sentences)
+            
             return {
-                'sentences': sentences[:20],  # Limit to 20 sentences
-                'image_url': None,
+                'sentences': processed_sentences,
                 'source': 'cambridge.org'
             }
             
@@ -109,8 +89,6 @@ class SentenceScraper:
         """Scrape sentences from YourDictionary"""
         try:
             url = f"https://sentence.yourdictionary.com/{word}"
-            self.add_random_delay()
-            
             response = self.session.get(url, timeout=10)
             response.raise_for_status()
             
@@ -121,14 +99,14 @@ class SentenceScraper:
             sentence_elements = soup.select('.sentence-item .sentence, .example-sentence')
             
             for element in sentence_elements:
-                # Use separator=' ' to ensure spaces around HTML tags
                 text = element.get_text(separator=' ', strip=True)
                 if text:
                     sentences.append(text)
             
+            processed_sentences = self.process_sentences(sentences)
+            
             return {
-                'sentences': sentences[:20],
-                'image_url': None,
+                'sentences': processed_sentences,
                 'source': 'yourdictionary.com'
             }
             
@@ -138,10 +116,11 @@ class SentenceScraper:
 
     def process_sentences(self, sentences):
         """Clean and process sentences"""
+        # Remove patterns like (1), (numbers), and leading numbers
         regex = re.compile(r'(\(\d+\)|\(.*?\)|\d+\.)|^\d+[\.,]|^\d+')
         processed = []
         
-        for i, sentence in enumerate(sentences, 1):
+        for sentence in sentences:
             if not sentence.strip():
                 continue
                 
@@ -155,12 +134,7 @@ class SentenceScraper:
             if len(cleaned) < 10 or cleaned.lower().startswith(('show all', 'random good')):
                 continue
                 
-            # Add numbering
-            processed.append(f"{i}. {cleaned}")
-            
-            # Limit to 30 sentences
-            if len(processed) >= 30:
-                break
+            processed.append(cleaned)
                 
         return processed
 
@@ -184,7 +158,11 @@ def get_sentences(word):
     if not word:
         return jsonify({'error': 'Invalid word format'}), 400
     
-    logger.info(f"Fetching sentences for word: {word}")
+    # Get limit from query parameter, default to 20, max 50
+    limit = request.args.get('limit', 20, type=int)
+    limit = max(1, min(limit, 50))  # Ensure limit is between 1 and 50
+    
+    logger.info(f"Fetching sentences for word: {word}, limit: {limit}")
     
     # Try multiple sources
     sources = [
@@ -208,80 +186,39 @@ def get_sentences(word):
         return jsonify({
             'word': word,
             'sentences': ['No sentences found for this word.'],
-            'image_url': None,
             'sources': [],
-            'total_sentences': 0
+            'total_sentences': 0,
+            'limit': limit
         })
     
     # Combine results
     combined_sentences = []
-    image_url = None
     sources_used = []
     
     for result in all_results:
         combined_sentences.extend(result['sentences'])
         sources_used.append(result['source'])
-        if result['image_url'] and not image_url:
-            image_url = result['image_url']
     
     # Remove duplicates while preserving order
     seen = set()
     unique_sentences = []
     for sentence in combined_sentences:
-        # Create a simplified version for comparison
-        simple = re.sub(r'^\d+\.\s*', '', sentence.lower())
-        if simple not in seen:
+        simple = sentence.lower()
+        if simple not in seen and simple:
             seen.add(simple)
             unique_sentences.append(sentence)
     
+    # Apply limit
+    limited_sentences = unique_sentences[:limit]
+    
     return jsonify({
         'word': word,
-        'sentences': unique_sentences[:30],  # Limit to 30 sentences
-        'image_url': image_url,
+        'sentences': limited_sentences,
         'sources': list(set(sources_used)),
-        'total_sentences': len(unique_sentences)
+        'total_sentences': len(unique_sentences),
+        'returned_sentences': len(limited_sentences),
+        'limit': limit
     })
-
-@app.route('/batch-sentences', methods=['POST'])
-def get_batch_sentences():
-    """Get sentences for multiple words"""
-    data = request.get_json()
-    
-    if not data or 'words' not in data:
-        return jsonify({'error': 'Words array is required'}), 400
-    
-    words = data['words']
-    if not isinstance(words, list) or len(words) == 0:
-        return jsonify({'error': 'Words must be a non-empty array'}), 400
-    
-    if len(words) > 10:  # Limit batch size
-        return jsonify({'error': 'Maximum 10 words per batch'}), 400
-    
-    results = {}
-    
-    for word in words:
-        word = re.sub(r'[^a-zA-Z\-]', '', str(word).lower().strip())
-        if word:
-            try:
-                # Use only primary source for batch to reduce load
-                result = scraper.scrape_sentencedict(word)
-                if result:
-                    results[word] = result
-                else:
-                    results[word] = {
-                        'sentences': ['No sentences found.'],
-                        'image_url': None,
-                        'source': 'none'
-                    }
-            except Exception as e:
-                logger.error(f"Error processing word '{word}': {str(e)}")
-                results[word] = {
-                    'sentences': ['Error fetching sentences.'],
-                    'image_url': None,
-                    'source': 'error'
-                }
-    
-    return jsonify({'results': results})
 
 @app.errorhandler(404)
 def not_found(error):
